@@ -1,6 +1,6 @@
 # Meteor BPMN Engine
 
-[![Build Status](https://travis-ci.org/jankapunkt/bpmn-engine.svg?branch=master)](https://travis-ci.org/jankapunkt/bpmn-engine)
+[![Build Status](https://travis-ci.org/cquencial/bpm-engine.svg?branch=master)](https://travis-ci.org/cquencial/bpm-engine)
 
 Integrates paed01/bpmn-engine into your Meteor application and provides a way to hook into the execution chain.
 
@@ -13,7 +13,7 @@ By using the hooks you can combine the data from execution events with your Mete
 Simple install like any other Meteor package:
 
 ```
-meteor add jkuester:bpmn-engine
+meteor add cquencial:bpmn-engine
 ```
 
 This engine takes on a hard dependency on paed01/bpmn-engine because it is easier to maintain with this (and the other extension packages).
@@ -51,13 +51,13 @@ Since hooks use object properties as namespaces, you can explicitly override a g
 
 I have already created some packages for you that make use of this package's extended API:
 
-* jkuester:bpmn-instances - Automatically reveals which process instances are currently running and provide access to them.
+* cquencial:bpmn-instances - Automatically reveals which process instances are currently running and provide access to them.
 
-* jkuester:bpmn-persistence - Persisting the engine state into a Mongo document. Restore your process at any time, rollback to any step.
+* cquencial:bpmn-persistence - Persisting the engine state into a Mongo document. Restore your process at any time, rollback to any step.
 
-* jkuester:bpmn-history - Creating a full documentation about every step in your process execution. Set the level of documentation by your needs.
+* cquencial:bpmn-history - Creating a full documentation about every step in your process execution. Set the level of documentation by your needs.
 
-* jkuester:bpmn-errors - Separate error log for all the bad things, that occurred during process execution.
+* cquencial:bpmn-errors - Separate error log for all the bad things, that occurred during process execution.
 
 
 
