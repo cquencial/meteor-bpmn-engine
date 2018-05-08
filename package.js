@@ -1,5 +1,5 @@
 Package.describe({
-  name: 'jkuester:bpmn-engine',
+  name: 'cquencial:bpmn-engine',
   version: '0.1.0',
   // Brief, one-line summary of the package.
   summary: 'Base package for including paed01/bpmn-engine.',
@@ -29,7 +29,7 @@ Package.onTest(function (api) {
   api.use('check');
   api.use('mongo');
   api.use('random');
-  api.use('jkuester:bpmn-engine');
+  api.use('cquencial:bpmn-engine');
   api.use('meteortesting:mocha');
   api.use('practicalmeteor:chai');
   api.mainModule('bpmn-engine-tests.js');

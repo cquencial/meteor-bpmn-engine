@@ -1,5 +1,5 @@
 /* eslint-env mocha */
-import { Bpmn } from 'meteor/jkuester:bpmn-engine';
+import { Bpmn } from 'meteor/cquencial:bpmn-engine';
 import { assert } from 'meteor/practicalmeteor:chai';
 import { Random } from 'meteor/random';
 
