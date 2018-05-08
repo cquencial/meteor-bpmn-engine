@@ -17,7 +17,6 @@ Package.onUse(function (api) {
     'random',
     'mongo',
     'check',
-    'tmeasday:check-npm-versions',
   ]);
   api.export('Bpmn');
   api.addFiles('bpmn-engine.js');
