@@ -1,0 +1,28 @@
+sudo: true
+dist: trusty
+
+# addons:
+#  apt:
+#    sources:
+#      - google-chrome
+#    packages:
+#      - google-chrome-stable
+
+language: node_js
+
+
+cache:
+  directories:
+    - $HOME/package/.npm
+    - $HOME/tests/node_modules
+
+before_install:
+  - curl https://install.meteor.com | /bin/sh
+  - export PATH="$HOME/.meteor:$PATH"
+
+install:
+  - export CURRENT_PACKAGE=$(pwd)
+
+script:
+  - meteor test-packages ./ --once --driver-package  meteortesting:mocha
+
