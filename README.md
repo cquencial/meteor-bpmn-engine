@@ -1,5 +1,7 @@
 # Meteor BPMN Engine
 
+[![Build Status](https://travis-ci.org/jankapunkt/bpmn-engine.svg?branch=master)](https://travis-ci.org/jankapunkt/bpmn-engine)
+
 Integrates paed01/bpmn-engine into your Meteor application and provides a way to hook into the execution chain.
 
 By using the hooks you can combine the data from execution events with your Meteor Mongo backend and create a powerful BPMN application backend or service.
