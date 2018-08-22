@@ -1,58 +1,55 @@
 /* global Bpmn:true */
-import { check } from 'meteor/check';
-import { Mongo } from 'meteor/mongo';
-import { Meteor } from 'meteor/meteor';
-import { Random } from 'meteor/random';
+import { check } from 'meteor/check'
+import { Mongo } from 'meteor/mongo'
+import { Meteor } from 'meteor/meteor'
+import { Random } from 'meteor/random'
 
-const BpmnEngine = require('bpmn-engine');
-const { EventEmitter } = require('events');
+const BpmnEngine = require('bpmn-engine')
+const {EventEmitter} = require('events')
 
 /**
  * See: https://github.com/paed01/bpmn-engine/blob/master/lib/validation.js
  * @private
  */
-const validExecuteOptions = ['listener', 'services', 'variables'];
-
+const validExecuteOptions = ['listener', 'services', 'variables']
 
 /**
  * The default Bpmn engine import from 'bpmn-engine'.
  */
-Bpmn = BpmnEngine;
+Bpmn = BpmnEngine
 
+const collectionName = 'BpmnProcesses'
+const BpmnProcessCollection = new Mongo.Collection(collectionName)
+BpmnProcessCollection.name = collectionName
 
-const collectionName = 'BpmnProcesses';
-const BpmnProcessCollection = new Mongo.Collection(collectionName);
-BpmnProcessCollection.name = collectionName;
-
-const processes = {};
-processes.collection = BpmnProcessCollection;
+const processes = {}
+processes.collection = BpmnProcessCollection
 
 processes.isRegistered = Meteor.bindEnvironment(function (instanceId) {
-  check(instanceId, String);
-  return BpmnProcessCollection.findOne({ instanceId });
-});
+  check(instanceId, String)
+  return BpmnProcessCollection.findOne({instanceId})
+})
 
-processes.register = Meteor.bindEnvironment(function ({ instanceId, source, isResume = false }) {
-  check(instanceId, String);
-  check(source, String);
-  check(isResume, Boolean);
+processes.register = Meteor.bindEnvironment(function ({instanceId, source, isResume = false}) {
+  check(instanceId, String)
+  check(source, String)
+  check(isResume, Boolean)
 
   const registeredDoc = processes.isRegistered(instanceId)
   if (!registeredDoc) {
-    return BpmnProcessCollection.insert({ instanceId, source, isResume, state:'started' });
+    return BpmnProcessCollection.insert({instanceId, source, isResume, state: 'started'})
   } else {
     return registeredDoc._id
   }
-});
+})
 
-processes.updateState = Meteor.bindEnvironment(function updateState(instanceId, state) {
+processes.updateState = Meteor.bindEnvironment(function updateState (instanceId, state) {
   check(instanceId, String)
   check(state, String)
   return BpmnProcessCollection.update({instanceId}, {$set: {state}})
 })
 
-
-Bpmn.processes = processes;
+Bpmn.processes = processes
 
 /**
  * List all available events here.
@@ -66,8 +63,8 @@ Bpmn.Events = {
   taken: 'taken',
   cancel: 'cancel',
   error: 'error',
-  discarded: 'discarded',
-};
+  discarded: 'discarded'
+}
 
 const states = {
   running: 'running',
@@ -86,104 +83,101 @@ Bpmn.States = states
  * outside world
  * @private
  */
-let _globalHooks = {};
+let _globalHooks = {}
 
 Bpmn.hooks = {
-  add(key, hooks) {
-    _globalHooks[key] = hooks;
+  add (key, hooks) {
+    _globalHooks[key] = hooks
   },
 
-  remove(key) {
-    delete _globalHooks[key];
+  remove (key) {
+    delete _globalHooks[key]
   },
 
-  clear() {
-    _globalHooks = {};
-  },
-};
+  clear () {
+    _globalHooks = {}
+  }
+}
 
-
-function runExtensions({
-  mergedExtensions, name, instance, options,
-}) {
-  const extensionValues = Object.values(mergedExtensions);
+function runExtensions ({mergedExtensions, name, instance, options}) {
+  const extensionValues = Object.values(mergedExtensions)
   extensionValues.forEach((extension) => {
-    if (extension[name]) { extension[name].call(null, instance, options); }
-  });
+    if (extension[name]) { extension[name].call(null, instance, options) }
+  })
 }
 
-function cleanOptions(options) {
-  const tmp = Object.assign({}, options);
+function cleanOptions (options) {
+  const tmp = Object.assign({}, options)
   Object.keys(tmp).forEach((key) => {
-    if (validExecuteOptions.indexOf(key) === -1) { delete tmp[key]; }
-  });
-  return tmp;
+    if (validExecuteOptions.indexOf(key) === -1) { delete tmp[key] }
+  })
+  return tmp
 }
 
-const originalConstructor = Bpmn.Engine;
+const OriginalConstructor = Bpmn.Engine
 Bpmn.Engine = function (options) {
-  const _options = options;
+  const _options = options
 
   // unify instance by
   // using an instanceId
-  let instanceId;
+  let instanceId
   if (_options && _options.instanceId) {
-    instanceId = _options.instanceId;
-    delete _options.instanceId;
+    instanceId = _options.instanceId
+    delete _options.instanceId
   } else {
-    instanceId = Random.id();
+    instanceId = Random.id()
   }
 
-  processes.register({ instanceId, source: options.source });
+  processes.register({instanceId, source: options.source})
 
   // add local extensions
-  let localExtensions = {};
+  let localExtensions = {}
   if (_options && _options.hooks) {
-    localExtensions = _options.hooks;
-    delete _options.hooks;
+    localExtensions = _options.hooks
+    delete _options.hooks
   }
 
-  const engine = new originalConstructor(_options);
-  engine.instanceId = instanceId;
-  engine.extensions = localExtensions;
+  const engine = new OriginalConstructor(_options)
+  engine.instanceId = instanceId
+  engine.extensions = localExtensions
 
   engine.on('end', () => {
     if (!engine.stopped) {
-    processes.updateState(instanceId, states.complete)
+      processes.updateState(instanceId, states.complete)
     }
   })
 
   engine.on('error', () => {
     processes.updateState(instanceId, states.error)
   })
-  return engine;
-};
+  return engine
+}
 
-Bpmn.Engine.prototype = originalConstructor.prototype;
+Bpmn.Engine.prototype = OriginalConstructor.prototype
 
-Object.keys(originalConstructor).forEach((key) => {
-  const value = originalConstructor[key];
-  Bpmn.Engine[key] = value;
-  Bpmn.Engine[key].prototype = value.prototype;
-});
+Object.keys(OriginalConstructor).forEach((key) => {
+  const value = OriginalConstructor[key]
+  Bpmn.Engine[key] = value
+  Bpmn.Engine[key].prototype = value.prototype
+})
 
 /**
  * Extends the execution by adding an instanceId.
  */
 
 Bpmn.Engine.prototype.execute = (function () {
-  const original = Bpmn.Engine.prototype.execute;
+  const original = Bpmn.Engine.prototype.execute
 
   return function (options = {}, callback) {
-    const instance = this;
-    const mergedExtensions = Object.assign({}, _globalHooks, instance.extensions);
+    const instance = this
+    const mergedExtensions = Object.assign({}, _globalHooks, instance.extensions)
 
     runExtensions({
       mergedExtensions,
       name: 'onExecuteBefore',
       instance: () => instance,
-      options,
-    });
+      options
+    })
 
     const processListener = Bpmn.createListeners(() => {
       processes.updateState(instance.instanceId, states.waiting)
@@ -192,101 +186,100 @@ Bpmn.Engine.prototype.execute = (function () {
     options.listener = options.listener || {}
     options.listener = Bpmn.mergeListeners({
       source: processListener,
-      target: options.listener,
+      target: options.listener
     })
 
     return original.call(this, cleanOptions(options), (err, engine) => {
-      engine.stopped = false;
+      engine.stopped = false
       processes.updateState(instance.instanceId, states.running)
 
       runExtensions({
         mergedExtensions,
         name: 'onExecuteAfter',
         instance: () => instance,
-        options,
-      });
+        options
+      })
 
-      if (callback) callback(err, engine);
-    });
-  };
-}());
+      if (callback) callback(err, engine)
+    })
+  }
+}())
 
 Bpmn.Engine.prototype.stop = (function () {
-  const original = Bpmn.Engine.prototype.stop;
+  const original = Bpmn.Engine.prototype.stop
 
   return function (options) {
-    const instance = this;
-    const mergedExtensions = Object.assign({}, _globalHooks, instance.extensions);
+    const instance = this
+    const mergedExtensions = Object.assign({}, _globalHooks, instance.extensions)
 
     runExtensions({
       mergedExtensions,
       name: 'onStopBefore',
       instance: () => instance,
-      options,
-    });
+      options
+    })
 
     processes.updateState(instance.instanceId, states.stopped)
-    this.stopped = true;
+    this.stopped = true
 
-    const stoppedEngine = original.call(instance);
+    const stoppedEngine = original.call(instance)
 
     runExtensions({
       mergedExtensions,
       name: 'onStopAfter',
       instance: () => instance,
-      options,
-    });
+      options
+    })
 
-    return stoppedEngine;
-  };
-}());
+    return stoppedEngine
+  }
+}())
 
-
-const originalResume = Bpmn.Engine.resume;
-const originalResumePrototype = originalResume.prototype;
+const originalResume = Bpmn.Engine.resume
+const originalResumePrototype = originalResume.prototype
 
 Bpmn.Engine.resume = function (state, options, callback) {
-  const _options = options;
-  let hooks = {};
+  const _options = options
+  let hooks = {}
   if (_options && _options.hooks) {
-    hooks = _options.hooks;
+    hooks = _options.hooks
   }
 
-  const instanceId = _options.instanceId;
-  if (!instanceId) throw new Error('instanceId is required to resume');
+  const instanceId = _options.instanceId
+  if (!instanceId) throw new Error('instanceId is required to resume')
 
-  processes.register({ instanceId, source: JSON.stringify(state), isResume: true });
+  processes.register({instanceId, source: JSON.stringify(state), isResume: true})
 
-  const mergedExtensions = Object.assign({}, _globalHooks, hooks);
+  const mergedExtensions = Object.assign({}, _globalHooks, hooks)
 
-  let engineRef;
+  let engineRef
 
   runExtensions({
     mergedExtensions,
     name: 'onResumeBefore',
     instance: () => engineRef,
-    options,
-  });
+    options
+  })
 
   engineRef = originalResume.call(this, state, cleanOptions(_options), (error, engine) => {
-    engineRef = engine;
-    engineRef.stopped = false;
-    engineRef.extensions = hooks;
-    engineRef.instanceId = instanceId;
+    engineRef = engine
+    engineRef.stopped = false
+    engineRef.extensions = hooks
+    engineRef.instanceId = instanceId
     processes.updateState(instanceId, states.running)
     runExtensions({
       name: 'onResumeAfter',
       mergedExtensions,
       instance: () => engine,
-      options,
-    });
+      options
+    })
 
-    if (callback) callback(error, engine);
-  });
+    if (callback) callback(error, engine)
+  })
 
   engineRef.on('end', () => {
-    if (!engineRef.stopped){
-    processes.updateState(instanceId, states.complete)
+    if (!engineRef.stopped) {
+      processes.updateState(instanceId, states.complete)
     }
   })
 
@@ -294,23 +287,22 @@ Bpmn.Engine.resume = function (state, options, callback) {
     processes.updateState(instanceId, states.error)
   })
 
-  engineRef.extensions = hooks;
-  engineRef.instanceId = instanceId;
+  engineRef.extensions = hooks
+  engineRef.instanceId = instanceId
 
   runExtensions({
     name: 'onResume',
     mergedExtensions,
     instance: () => engineRef,
-    options,
-  });
+    options
+  })
 
-  return engineRef;
-};
+  return engineRef
+}
 
-Bpmn.Engine.resume.prototype = originalResumePrototype;
+Bpmn.Engine.resume.prototype = originalResumePrototype
 
-
-Bpmn.utils = {};
+Bpmn.utils = {}
 
 /**
  * Attaches listeners to all {Bpmn.Events} unless flagged as false.
@@ -319,23 +311,23 @@ Bpmn.utils = {};
  * @param opts.target {Object.EventEmitter} Optional target to listen on.
  * @returns {Object.EventEmitter} Returns a new EventEmitter or the given target by {opts.target}.
  */
-Bpmn.createListeners = function createListeners(callbackFct, opts, arr) {
-  const options = opts || {};
+Bpmn.createListeners = function createListeners (callbackFct, opts, arr) {
+  const options = opts || {}
 
   if (Object.prototype.hasOwnProperty.call(options, 'target')) {
     if (!options.target) {
-      throw new Error('expected target but got none');
+      throw new Error('expected target but got none')
     }
-    if (!(options.target instanceof EventEmitter)) { throw new Error('expected target to be an EventEmitter'); }
+    if (!(options.target instanceof EventEmitter)) { throw new Error('expected target to be an EventEmitter') }
   }
-  const persistenceListener = options.target || new EventEmitter();
+  const persistenceListener = options.target || new EventEmitter()
 
-  const boundCb = Meteor.bindEnvironment(callbackFct);
+  const boundCb = Meteor.bindEnvironment(callbackFct)
 
-  function cb(eventName) {
+  function cb (eventName) {
     return (element, instance) => {
-      boundCb(element, instance, eventName);
-    };
+      boundCb(element, instance, eventName)
+    }
   }
 
   // TODO fix merge options and arr
@@ -347,67 +339,67 @@ Bpmn.createListeners = function createListeners(callbackFct, opts, arr) {
   }
 
   if (options.wait !== false) {
-    persistenceListener.on('wait', cb('wait'));
+    persistenceListener.on('wait', cb('wait'))
   }
 
   if (options.error !== false) {
-    persistenceListener.on('error', cb('error'));
+    persistenceListener.on('error', cb('error'))
   }
 
   if (options.start !== false) {
-    persistenceListener.on('start', cb('start'));
+    persistenceListener.on('start', cb('start'))
   }
 
   if (options.end !== false) {
-    persistenceListener.on('end', cb('end'));
+    persistenceListener.on('end', cb('end'))
   }
 
   if (options.enter !== false) {
-    persistenceListener.on('enter', cb('enter'));
+    persistenceListener.on('enter', cb('enter'))
   }
 
   if (options.cancel !== false) {
-    persistenceListener.on('cancel', cb('cancel'));
+    persistenceListener.on('cancel', cb('cancel'))
   }
 
   if (options.taken !== false) {
-    persistenceListener.on('taken', cb('taken'));
+    persistenceListener.on('taken', cb('taken'))
   }
 
   if (options.leave !== false) {
-    persistenceListener.on('leave', cb('leave'));
+    persistenceListener.on('leave', cb('leave'))
   }
 
   if (options.discarded !== false) {
-    persistenceListener.on('discarded', cb('discarded'));
+    persistenceListener.on('discarded', cb('discarded'))
   }
 
-  return persistenceListener;
-};
+  return persistenceListener
+}
 
-Bpmn.mergeListeners = function ({ source, target }) {
+Bpmn.mergeListeners = function ({source, target}) {
   if (!source && !target) {
-    throw new Error('expected at least one of target or source as param');
+    throw new Error('expected at least one of target or source as param')
   }
-  if (!source && target) return target;
-  if (!target && source) return source;
+  if (!source && target) return target
+  if (!target && source) return source
 
-  const sourceEvents = source._events;
-  const sourceEventKeys = Object.keys(sourceEvents);
+  const sourceEvents = source._events
+  const sourceEventKeys = Object.keys(sourceEvents)
   sourceEventKeys.forEach((sourceEventKey) => {
-    let sourceEventValue = sourceEvents[sourceEventKey];
+    let sourceEventValue = sourceEvents[sourceEventKey]
 
     if (typeof sourceEventValue === 'function') {
-      sourceEventValue = [sourceEventValue];
+      sourceEventValue = [sourceEventValue]
     }
 
     sourceEventValue.forEach((sourceListener) => {
       if (sourceListener.name.includes('once')) {
-        target.once(sourceEventKey, sourceListener.listener);
+        target.once(sourceEventKey, sourceListener.listener)
       } else {
-        target.on(sourceEventKey, sourceListener);
+        target.on(sourceEventKey, sourceListener)
       }
-    });
-  });
-  return target;
-};
+    })
+  })
+  return target
+}

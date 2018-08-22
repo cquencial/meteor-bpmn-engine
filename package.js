@@ -1,6 +1,6 @@
 Package.describe({
   name: 'cquencial:bpmn-engine',
-  version: '0.1.1',
+  version: '0.1.2',
   // Brief, one-line summary of the package.
   summary: 'Base package for including paed01/bpmn-engine.',
   // URL to the Git repository containing the source code for this package.
