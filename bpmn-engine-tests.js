@@ -2,6 +2,7 @@
 import { Bpmn } from 'meteor/cquencial:bpmn-engine';
 import { assert } from 'meteor/practicalmeteor:chai';
 import { Random } from 'meteor/random';
+import {Meteor} from 'meteor/meteor'
 
 const { EventEmitter } = require('events');
 
@@ -53,7 +54,7 @@ describe('bpmn-engine', function () {
 
   // //////////////////////////////////////////////////////////////////////////////////////
   //
-  //  API
+  //  ORIGINAL API
   //
   // //////////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +130,109 @@ describe('bpmn-engine', function () {
       assert.deepEqual(engine.extensions, hooksObj);
     });
   });
+
+  // //////////////////////////////////////////////////////////////////////////////////////
+  //
+  //  COLLECTION
+  //
+  // //////////////////////////////////////////////////////////////////////////////////////
+
+  describe('Bpmn.processes', function () {
+
+    it('processes.register registers a new process on instantiation', function () {
+      const insertDoc = {
+        instanceId: Random.id(),
+        source: Random.id(),
+        isResume: true,
+      }
+
+      const registeredId = Bpmn.processes.register(insertDoc)
+      const registeredDoc = Bpmn.processes.collection.findOne(registeredId)
+
+      assert.equal(registeredDoc.state, Bpmn.States.started)
+      assert.equal(registeredDoc.instanceId, insertDoc.instanceId)
+      assert.equal(registeredDoc.source, insertDoc.source)
+      assert.equal(registeredDoc.isResume, insertDoc.isResume)
+    })
+
+    it('processes.updateState updates the state of the current process', function () {
+      const insertDoc = {
+        instanceId: Random.id(),
+        source: Random.id(),
+        isResume: true,
+      }
+
+      const registeredId = Bpmn.processes.register(insertDoc)
+
+      Bpmn.processes.updateState(insertDoc.instanceId, Bpmn.States.waiting)
+      const registeredDoc = Bpmn.processes.collection.findOne(registeredId)
+
+
+      assert.equal(registeredDoc.state, Bpmn.States.waiting)
+      assert.equal(registeredDoc.instanceId, insertDoc.instanceId)
+      assert.equal(registeredDoc.source, insertDoc.source)
+      assert.equal(registeredDoc.isResume, insertDoc.isResume)
+    })
+
+    it('process.updateState - started, running, waiting, completed', function (done) {
+      const engineOptions = {
+        source: processWithUserTask,
+      };
+
+
+      const engine = new Bpmn.Engine(engineOptions);
+      const instanceId = engine.instanceId
+
+      const processDocStart = Bpmn.processes.collection.findOne({instanceId})
+      assert.equal(processDocStart.state, Bpmn.States.started)
+
+      const waitListener = new EventEmitter()
+      waitListener.on('wait', Meteor.bindEnvironment((element) => {
+        Meteor._sleepForMs(200)
+        const processDocWaiting = Bpmn.processes.collection.findOne({instanceId})
+        assert.equal(processDocWaiting.state, Bpmn.States.waiting)
+        element.signal()
+      }))
+
+      engine.on('end', Meteor.bindEnvironment(() => {
+        Meteor._sleepForMs(200)
+        const processDocEnd = Bpmn.processes.collection.findOne({instanceId})
+        assert.equal(processDocEnd.state, Bpmn.States.complete)
+        done()
+      }))
+
+      engine.execute({ listener: waitListener })
+    })
+
+    it('processes.updateState - stopped, resume', function (done) {
+      const engineOptions = {
+        source: processWithUserTask,
+      };
+
+      const engine = new Bpmn.Engine(engineOptions);
+      const instanceId = engine.instanceId
+      let state;
+
+      const waitListener = new EventEmitter();
+      waitListener.on('wait', Meteor.bindEnvironment(() => {
+        Meteor._sleepForMs(150)
+        state = engine.getState();
+        engine.stop()
+      }))
+
+      engine.on('end', () => {
+        Meteor._sleepForMs(450)
+        const processDocStopped = Bpmn.processes.collection.findOne({instanceId})
+        assert.equal(processDocStopped.state, Bpmn.States.stopped)
+        Bpmn.Engine.resume(state, {instanceId}, (err, res) => {
+          done();
+        });
+
+      });
+
+      engine.execute({ listener: waitListener });
+    });
+  })
 
   // //////////////////////////////////////////////////////////////////////////////////////
   //
