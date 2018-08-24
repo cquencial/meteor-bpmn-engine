@@ -1,5 +1,5 @@
 /* global Bpmn:true */
-import { check } from 'meteor/check'
+import { check, Match } from 'meteor/check'
 import { Mongo } from 'meteor/mongo'
 import { Meteor } from 'meteor/meteor'
 import { Random } from 'meteor/random'
@@ -183,11 +183,13 @@ Bpmn.Engine.prototype.execute = (function () {
       processes.updateState(instance.instanceId, states.waiting)
     }, null, [Bpmn.Events.wait])
 
-    options.listener = options.listener || {}
-    options.listener = Bpmn.mergeListeners({
-      source: processListener,
-      target: options.listener
-    })
+    if (options.listener) {
+      options.listener = Bpmn.mergeListeners({
+        target: processListener,
+        source: options.listener
+      })
+    }
+    options.listener = processListener
 
     return original.call(this, cleanOptions(options), (err, engine) => {
       engine.stopped = false
@@ -378,6 +380,9 @@ Bpmn.createListeners = function createListeners (callbackFct, opts, arr) {
 }
 
 Bpmn.mergeListeners = function ({source, target}) {
+  check(source, Match.Maybe(EventEmitter))
+  check(source, Match.Maybe(EventEmitter))
+  
   if (!source && !target) {
     throw new Error('expected at least one of target or source as param')
   }
