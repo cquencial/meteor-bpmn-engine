@@ -252,9 +252,8 @@ Bpmn.Engine.resume = function (state, options, callback) {
 
   processes.register({instanceId, source: JSON.stringify(state), isResume: true})
 
-  const mergedExtensions = Object.assign({}, _globalHooks, hooks)
-
   let engineRef
+  const mergedExtensions = Object.assign({}, _globalHooks, hooks)
 
   runExtensions({
     mergedExtensions,
@@ -382,7 +381,7 @@ Bpmn.createListeners = function createListeners (callbackFct, opts, arr) {
 Bpmn.mergeListeners = function ({source, target}) {
   check(source, Match.Maybe(EventEmitter))
   check(source, Match.Maybe(EventEmitter))
-  
+
   if (!source && !target) {
     throw new Error('expected at least one of target or source as param')
   }
