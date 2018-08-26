@@ -59,6 +59,46 @@ Bpmn.States = states
 
 // //////////////////////////////////////////////////////////////////////////////////////
 //
+//  EXTENSIONS
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Private dict for the extensions
+ * @type {{}}
+ * @private
+ */
+const _extensions = {}
+
+const extensions = {
+  add (key, ref, isActive = true) {
+    _extensions[key] = {ref, isActive}
+    return ref
+  },
+  remove (key, ref) {
+    return delete _extensions[key]
+  },
+  get (key) {
+    return _extensions[key]
+  },
+  getAll () {
+    return Object.values(_extensions)
+  },
+  status (key, isActive) {
+    const ref = this.get(key)
+    if (ref) {
+      ref.isActive = isActive
+      return true
+    } else {
+      return false
+    }
+  }
+}
+
+Bpmn.extensions = extensions
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
 //  HOOKS
 //
 // //////////////////////////////////////////////////////////////////////////////////////
