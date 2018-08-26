@@ -18,6 +18,80 @@ const validExecuteOptions = ['listener', 'services', 'variables']
  */
 Bpmn = BpmnEngine
 
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  EVENTS
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * List all available events here.
+ */
+Bpmn.Events = {
+  start: 'start',
+  enter: 'enter',
+  end: 'end',
+  wait: 'wait',
+  leave: 'leave',
+  taken: 'taken',
+  cancel: 'cancel',
+  error: 'error',
+  discarded: 'discarded'
+}
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  STATES
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
+const states = {
+  running: 'running',
+  started: 'started',
+  complete: 'complete',
+  waiting: 'waiting',
+  stopped: 'stopped',
+  cancelled: 'cancelled',
+  error: 'error'
+}
+
+Bpmn.States = states
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  HOOKS
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Private dict for the hooks
+ * @type {{}}
+ * @private
+ */
+let _globalHooks = {}
+
+const hooks = {
+  add (key, hooks) {
+    _globalHooks[key] = hooks
+  },
+
+  remove (key) {
+    delete _globalHooks[key]
+  },
+
+  clear () {
+    _globalHooks = {}
+  }
+}
+
+Bpmn.hooks = hooks
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  DEFAULT EXTENSION
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
 const collectionName = 'BpmnProcesses'
 const BpmnProcessCollection = new Mongo.Collection(collectionName)
 BpmnProcessCollection.name = collectionName
@@ -51,53 +125,11 @@ processes.updateState = Meteor.bindEnvironment(function updateState (instanceId,
 
 Bpmn.processes = processes
 
-/**
- * List all available events here.
- */
-Bpmn.Events = {
-  start: 'start',
-  enter: 'enter',
-  end: 'end',
-  wait: 'wait',
-  leave: 'leave',
-  taken: 'taken',
-  cancel: 'cancel',
-  error: 'error',
-  discarded: 'discarded'
-}
-
-const states = {
-  running: 'running',
-  started: 'started',
-  complete: 'complete',
-  waiting: 'waiting',
-  stopped: 'stopped',
-  cancelled: 'cancelled',
-  error: 'error'
-}
-
-Bpmn.States = states
-
-/**
- * Never leak the current extension config to the
- * outside world
- * @private
- */
-let _globalHooks = {}
-
-Bpmn.hooks = {
-  add (key, hooks) {
-    _globalHooks[key] = hooks
-  },
-
-  remove (key) {
-    delete _globalHooks[key]
-  },
-
-  clear () {
-    _globalHooks = {}
-  }
-}
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  HELPERS
+//
+// //////////////////////////////////////////////////////////////////////////////////////
 
 function runExtensions ({mergedExtensions, name, instance, options}) {
   const extensionValues = Object.values(mergedExtensions)
@@ -113,6 +145,134 @@ function cleanOptions (options) {
   })
   return tmp
 }
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  UTILS
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
+Bpmn.utils = {}
+
+/**
+ * Attaches listeners to all {Bpmn.Events} unless flagged as false.
+ * @param callbackFct {Function} The callback that will be called on all events that the listener is on.
+ * @param opts {Object} Options.
+ * @param opts.target {Object.EventEmitter} Optional target to listen on.
+ * @returns {Object.EventEmitter} Returns a new EventEmitter or the given target by {opts.target}.
+ */
+function createListeners (callbackFct, opts, arr) {
+  const options = opts || {}
+
+  if (Object.prototype.hasOwnProperty.call(options, 'target')) {
+    if (!options.target) {
+      throw new Error('expected target but got none')
+    }
+    if (!(options.target instanceof EventEmitter)) { throw new Error('expected target to be an EventEmitter') }
+  }
+  const persistenceListener = options.target || new EventEmitter()
+
+  const boundCb = Meteor.bindEnvironment(callbackFct)
+
+  function cb (eventName) {
+    return (element, instance) => {
+      boundCb(element, instance, eventName)
+    }
+  }
+
+  // TODO fix merge options and arr
+  if (arr) {
+    arr.forEach(key => {
+      persistenceListener.on(key, cb(key))
+    })
+    return persistenceListener
+  }
+
+  if (options.wait !== false) {
+    persistenceListener.on('wait', cb('wait'))
+  }
+
+  if (options.error !== false) {
+    persistenceListener.on('error', cb('error'))
+  }
+
+  if (options.start !== false) {
+    persistenceListener.on('start', cb('start'))
+  }
+
+  if (options.end !== false) {
+    persistenceListener.on('end', cb('end'))
+  }
+
+  if (options.enter !== false) {
+    persistenceListener.on('enter', cb('enter'))
+  }
+
+  if (options.cancel !== false) {
+    persistenceListener.on('cancel', cb('cancel'))
+  }
+
+  if (options.taken !== false) {
+    persistenceListener.on('taken', cb('taken'))
+  }
+
+  if (options.leave !== false) {
+    persistenceListener.on('leave', cb('leave'))
+  }
+
+  if (options.discarded !== false) {
+    persistenceListener.on('discarded', cb('discarded'))
+  }
+
+  return persistenceListener
+}
+
+Bpmn.createListeners = createListeners
+
+/**
+ * Merges two Event Listeners by copying all events from source to target.
+ * This is not a pure function and mutates the target EventEmitter instance.
+ * @param source EventEmitter, the one from the events will be copied from
+ * @param target EventEmitter, the one to which will the events be copied to
+ * @returns {EventEmitter} the merged EventEmitter instance
+ */
+function mergeListeners ({source, target}) {
+  check(source, Match.Maybe(EventEmitter))
+  check(source, Match.Maybe(EventEmitter))
+
+  if (!source && !target) {
+    throw new Error('expected at least one of target or source as param')
+  }
+  if (!source && target) return target
+  if (!target && source) return source
+
+  const sourceEvents = source._events
+  const sourceEventKeys = Object.keys(sourceEvents)
+  sourceEventKeys.forEach((sourceEventKey) => {
+    let sourceEventValue = sourceEvents[sourceEventKey]
+
+    if (typeof sourceEventValue === 'function') {
+      sourceEventValue = [sourceEventValue]
+    }
+
+    sourceEventValue.forEach((sourceListener) => {
+      if (sourceListener.name.includes('once')) {
+        target.once(sourceEventKey, sourceListener.listener)
+      } else {
+        target.on(sourceEventKey, sourceListener)
+      }
+    })
+  })
+  return target
+}
+
+Bpmn.mergeListeners = mergeListeners
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  OVERRIDE CONSTRUCTOR
+//
+// //////////////////////////////////////////////////////////////////////////////////////
 
 const OriginalConstructor = Bpmn.Engine
 Bpmn.Engine = function (options) {
@@ -161,6 +321,12 @@ Object.keys(OriginalConstructor).forEach((key) => {
   Bpmn.Engine[key].prototype = value.prototype
 })
 
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  OVERRIDE EXECUTE
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Extends the execution by adding an instanceId.
  */
@@ -207,6 +373,12 @@ Bpmn.Engine.prototype.execute = (function () {
   }
 }())
 
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  OVERRIDE STOP
+//
+// //////////////////////////////////////////////////////////////////////////////////////
+
 Bpmn.Engine.prototype.stop = (function () {
   const original = Bpmn.Engine.prototype.stop
 
@@ -236,6 +408,12 @@ Bpmn.Engine.prototype.stop = (function () {
     return stoppedEngine
   }
 }())
+
+// //////////////////////////////////////////////////////////////////////////////////////
+//
+//  OVERRIDE RESUME
+//
+// //////////////////////////////////////////////////////////////////////////////////////
 
 const originalResume = Bpmn.Engine.resume
 const originalResumePrototype = originalResume.prototype
@@ -302,108 +480,3 @@ Bpmn.Engine.resume = function (state, options, callback) {
 }
 
 Bpmn.Engine.resume.prototype = originalResumePrototype
-
-Bpmn.utils = {}
-
-/**
- * Attaches listeners to all {Bpmn.Events} unless flagged as false.
- * @param callbackFct {Function} The callback that will be called on all events that the listener is on.
- * @param opts {Object} Options.
- * @param opts.target {Object.EventEmitter} Optional target to listen on.
- * @returns {Object.EventEmitter} Returns a new EventEmitter or the given target by {opts.target}.
- */
-Bpmn.createListeners = function createListeners (callbackFct, opts, arr) {
-  const options = opts || {}
-
-  if (Object.prototype.hasOwnProperty.call(options, 'target')) {
-    if (!options.target) {
-      throw new Error('expected target but got none')
-    }
-    if (!(options.target instanceof EventEmitter)) { throw new Error('expected target to be an EventEmitter') }
-  }
-  const persistenceListener = options.target || new EventEmitter()
-
-  const boundCb = Meteor.bindEnvironment(callbackFct)
-
-  function cb (eventName) {
-    return (element, instance) => {
-      boundCb(element, instance, eventName)
-    }
-  }
-
-  // TODO fix merge options and arr
-  if (arr) {
-    arr.forEach(key => {
-      persistenceListener.on(key, cb(key))
-    })
-    return persistenceListener
-  }
-
-  if (options.wait !== false) {
-    persistenceListener.on('wait', cb('wait'))
-  }
-
-  if (options.error !== false) {
-    persistenceListener.on('error', cb('error'))
-  }
-
-  if (options.start !== false) {
-    persistenceListener.on('start', cb('start'))
-  }
-
-  if (options.end !== false) {
-    persistenceListener.on('end', cb('end'))
-  }
-
-  if (options.enter !== false) {
-    persistenceListener.on('enter', cb('enter'))
-  }
-
-  if (options.cancel !== false) {
-    persistenceListener.on('cancel', cb('cancel'))
-  }
-
-  if (options.taken !== false) {
-    persistenceListener.on('taken', cb('taken'))
-  }
-
-  if (options.leave !== false) {
-    persistenceListener.on('leave', cb('leave'))
-  }
-
-  if (options.discarded !== false) {
-    persistenceListener.on('discarded', cb('discarded'))
-  }
-
-  return persistenceListener
-}
-
-Bpmn.mergeListeners = function ({source, target}) {
-  check(source, Match.Maybe(EventEmitter))
-  check(source, Match.Maybe(EventEmitter))
-
-  if (!source && !target) {
-    throw new Error('expected at least one of target or source as param')
-  }
-  if (!source && target) return target
-  if (!target && source) return source
-
-  const sourceEvents = source._events
-  const sourceEventKeys = Object.keys(sourceEvents)
-  sourceEventKeys.forEach((sourceEventKey) => {
-    let sourceEventValue = sourceEvents[sourceEventKey]
-
-    if (typeof sourceEventValue === 'function') {
-      sourceEventValue = [sourceEventValue]
-    }
-
-    sourceEventValue.forEach((sourceListener) => {
-      if (sourceListener.name.includes('once')) {
-        target.once(sourceEventKey, sourceListener.listener)
-      } else {
-        target.on(sourceEventKey, sourceListener)
-      }
-    })
-  })
-  return target
-}
