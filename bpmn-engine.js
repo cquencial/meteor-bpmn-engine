@@ -137,6 +137,9 @@ const BpmnProcessCollection = new Mongo.Collection(collectionName)
 BpmnProcessCollection.name = collectionName
 
 const processes = {}
+processes.name = 'Processes'
+processes.ns = 'extensions:processes'
+processes.description = 'Foundation for process Management'
 processes.collection = BpmnProcessCollection
 
 processes.isRegistered = Meteor.bindEnvironment(function (instanceId) {
@@ -164,6 +167,8 @@ processes.updateState = Meteor.bindEnvironment(function updateState (instanceId,
 })
 
 Bpmn.processes = processes
+
+Bpmn.extensions.add(processes.ns, processes, true)
 
 // //////////////////////////////////////////////////////////////////////////////////////
 //
