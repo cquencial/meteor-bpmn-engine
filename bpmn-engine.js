@@ -138,7 +138,7 @@ BpmnProcessCollection.name = collectionName
 
 const processes = {}
 processes.name = 'Processes'
-processes.ns = 'extensions:processes'
+processes.ns = 'extensions.processes'
 processes.description = 'Foundation for process Management'
 processes.collection = BpmnProcessCollection
 
