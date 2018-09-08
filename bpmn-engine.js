@@ -69,9 +69,14 @@ Bpmn.States = states
  * @private
  */
 const _extensions = {}
+const isExtension = ext => !!ext.name && !!ext.ns && !!ext.description &&
+  (ext.collection ? ext.collection instanceof Mongo.Collection : true) &&
+  ext.methods && typeof ext.methods === 'object'
 
 const extensions = {
   add (key, ref, isActive = true) {
+    check(key, String)
+    check(ref, Match.Where(isExtension))
     _extensions[key] = {ref, isActive}
     return ref
   },
@@ -165,6 +170,8 @@ processes.updateState = Meteor.bindEnvironment(function updateState (instanceId,
   check(state, String)
   return BpmnProcessCollection.update({instanceId}, {$set: {state}})
 })
+
+processes.methods = {}
 
 Bpmn.processes = processes
 
